@@ -1,0 +1,203 @@
+# Snapshot of `python scripts/run_experiment.py` output, used to pick the Phase 2 parameters.
+# Regenerate with that command; this file is not read by any code.
+
+
+
+==========================================================================================
+n-gram size = 3  (gap_tolerance=4, min_passage_tokens=8, no document-frequency filter)
+==========================================================================================
+  matthew  x mark      chains=16363  min_len_ok=  249  final= 244  exact= 181  near=  63  score_mean=0.99
+  matthew  x luke      chains=27667  min_len_ok=  247  final= 239  exact= 173  near=  66  score_mean=0.98
+  matthew  x john      chains=15850  min_len_ok=    9  final=   9  exact=   9  near=   0  score_mean=1.00
+  mark     x luke      chains=21328  min_len_ok=  160  final= 154  exact= 120  near=  34  score_mean=0.99
+  mark     x john      chains=11314  min_len_ok=    9  final=   9  exact=   6  near=   3  score_mean=0.97
+  luke     x john      chains=18021  min_len_ok=    4  final=   4  exact=   4  near=   0  score_mean=1.00
+
+  -- sample matches, matthew x mark (highest score first, up to 10) --
+    [exact 1.00] matthew: 'It is easier for a camel to go through the eye of a needle, than for a rich man to enter into the...'
+                     mark: 'It is easier for a camel to go through the eye of a needle, than for a rich man to enter into the...'
+    [exact 1.00] matthew: 'see the Son of man sitting on the right hand of power, and coming in the clouds of heaven. 26:65 ...'
+                     mark: 'see the Son of man sitting on the right hand of power, and coming in the clouds of heaven. 14:63 ...'
+    [exact 1.00] matthew: 'will come after me, let him deny himself, and take up his cross, and follow me. 16:25 For whosoev...'
+                     mark: 'will come after me, let him deny himself, and take up his cross, and follow me. 8:35 For whosoeve...'
+    [exact 1.00] matthew: 'them that sold and bought in the temple, and overthrew the tables of the moneychangers, and the s...'
+                     mark: 'them that sold and bought in the temple, and overthrew the tables of the moneychangers, and the s...'
+    [exact 1.00] matthew: 'unto them, All ye shall be offended because of me this night: for it is written, I will smite the...'
+                     mark: 'unto them, All ye shall be offended because of me this night: for it is written, I will smite the...'
+    [exact 1.00] matthew: 'if he shall gain the whole world, and lose his own soul? or what shall a man give in exchange for...'
+                     mark: 'if he shall gain the whole world, and lose his own soul? 8:37 Or what shall a man give in exchang...'
+    [exact 1.00] matthew: 'the Son of man came not to be ministered unto, but to minister, and to give his life a ransom for...'
+                     mark: 'the Son of man came not to be ministered unto, but to minister, and to give his life a ransom for...'
+    [exact 1.00] matthew: 'cause them to be put to death. 10:22 And ye shall be hated of all men for my name’s sake: but he ...'
+                     mark: 'cause them to be put to death. 13:13 And ye shall be hated of all men for my name’s sake: but he ...'
+    [exact 1.00] matthew: 'Thou shalt love the Lord thy God with all thy heart, and with all thy soul, and with all thy mind'
+                     mark: 'thou shalt love the Lord thy God with all thy heart, and with all thy soul, and with all thy mind'
+    [exact 1.00] matthew: 'The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths straight'
+                     mark: 'The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths straight'
+
+  -- sample matches, matthew x luke (highest score first, up to 10) --
+    [exact 1.00] matthew: 'not to say within yourselves, We have Abraham to our father: for I say unto you, that God is able...'
+                     luke: 'not to say within yourselves, We have Abraham to our father: for I say unto you, That God is able...'
+    [exact 1.00] matthew: 'you. 7:7 Ask, and it shall be given you; seek, and ye shall find; knock, and it shall be opened u...'
+                     luke: 'you, Ask, and it shall be given you; seek, and ye shall find; knock, and it shall be opened unto ...'
+    [exact 1.00] matthew: 'can serve two masters: for either he will hate the one, and love the other; or else he will hold ...'
+                     luke: 'can serve two masters: for either he will hate the one, and love the other; or else he will hold ...'
+    [exact 1.00] matthew: 'have desired to see those things which ye see, and have not seen them; and to hear those things w...'
+                     luke: 'have desired to see those things which ye see, and have not seen them; and to hear those things w...'
+    [exact 1.00] matthew: 'seven other spirits more wicked than himself, and they enter in and dwell there: and the last sta...'
+                     luke: 'seven other spirits more wicked than himself; and they enter in, and dwell there: and the last st...'
+    [exact 1.00] matthew: 'Go, and he goeth; and to another, Come, and he cometh; and to my servant, Do this, and he doeth i...'
+                     luke: 'Go, and he goeth; and to another, Come, and he cometh; and to my servant, Do this, and he doeth i...'
+    [exact 1.00] matthew: 'to see? A reed shaken with the wind? 11:8 But what went ye out for to see? A man clothed in soft ...'
+                     luke: 'to see? A reed shaken with the wind? 7:25 But what went ye out for to see? A man clothed in soft ...'
+    [exact 1.00] matthew: 'was it? from heaven, or of men? And they reasoned with themselves, saying, If we shall say, From ...'
+                     luke: 'was it from heaven, or of men? 20:5 And they reasoned with themselves, saying, If we shall say, F...'
+    [exact 1.00] matthew: 'thee: and in their hands they shall bear thee up, lest at any time thou dash thy foot against a s...'
+                     luke: 'thee: 4:11 And in their hands they shall bear thee up, lest at any time thou dash thy foot agains...'
+    [exact 1.00] matthew: 'saying, The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths...'
+                     luke: 'saying, The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths...'
+
+  -- sample matches, matthew x john (highest score first, up to 10) --
+    [exact 1.00] matthew: 'receiveth me, and he that receiveth me receiveth him that sent me'
+                     john: 'receiveth me; and he that receiveth me receiveth him that sent me'
+    [exact 1.00] matthew: 'Verily I say unto you, that one of you shall betray me'
+                     john: 'verily, I say unto you, that one of you shall betray me'
+    [exact 1.00] matthew: 'that cometh in the name of the Lord. 24:1 And Jesus'
+                     john: 'that cometh in the name of the Lord. 12:14 And Jesus'
+    [exact 1.00] matthew: 'The voice of one crying in the wilderness'
+                     john: 'the voice of one crying in the wilderness'
+    [exact 1.00] matthew: 'his life shall lose it: and he that'
+                     john: 'his life shall lose it; and he that'
+    [exact 1.00] matthew: 'said unto him, It is not lawful for'
+                     john: 'said unto him, It is not lawful for'
+    [exact 1.00] matthew: 'Verily I say unto you, Whatsoever ye shall'
+                     john: 'verily, I say unto you, Whatsoever ye shall'
+    [exact 1.00] matthew: 'that cometh in the name of the Lord'
+                     john: 'that cometh in the name of the Lord'
+    [exact 1.00] matthew: 'with you; but me ye have not always'
+                     john: 'with you; but me ye have not always'
+
+  -- sample matches, mark x luke (highest score first, up to 10) --
+    [exact 1.00] mark: 'Saying, Let us alone; what have we to do with thee, thou Jesus of Nazareth? art thou come to dest...'
+                     luke: 'Saying, Let us alone; what have we to do with thee, thou Jesus of Nazareth? art thou come to dest...'
+    [exact 1.00] mark: 'little children to come unto me, and forbid them not: for of such is the kingdom of God. 10:15 Ve...'
+                     luke: 'little children to come unto me, and forbid them not: for of such is the kingdom of God. 18:17 Ve...'
+    [exact 1.00] mark: 'Jesus, Master, it is good for us to be here: and let us make three tabernacles; one for thee, and...'
+                     luke: 'Jesus, Master, it is good for us to be here: and let us make three tabernacles; one for thee, and...'
+    [exact 1.00] mark: 'one, that is, God. 10:19 Thou knowest the commandments, Do not commit adultery, Do not kill, Do n...'
+                     luke: 'one, that is, God. 18:20 Thou knowest the commandments, Do not commit adultery, Do not kill, Do n...'
+    [exact 1.00] mark: 'But the days will come, when the bridegroom shall be taken away from them, and then shall they fa...'
+                     luke: 'But the days will come, when the bridegroom shall be taken away from them, and then shall they fa...'
+    [exact 1.00] mark: 'The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths straight'
+                     luke: 'The voice of one crying in the wilderness, Prepare ye the way of the Lord, make his paths straight'
+    [exact 1.00] mark: 'physician, but they that are sick: I came not to call the righteous, but sinners to repentance. 2...'
+                     luke: 'physician; but they that are sick. 5:32 I came not to call the righteous, but sinners to repentan...'
+    [exact 1.00] mark: 'to be put to death. 13:13 And ye shall be hated of all men for my name’s sake: but'
+                     luke: 'to be put to death. 21:17 And ye shall be hated of all men for my name’s sake. 21:18 But'
+    [exact 1.00] mark: 'And they reasoned with themselves, saying, If we shall say, From heaven; he will say, Why then'
+                     luke: 'And they reasoned with themselves, saying, If we shall say, From heaven; he will say, Why then'
+    [exact 1.00] mark: 'and entered into the swine: and the herd ran violently down a steep place into the'
+                     luke: 'and entered into the swine: and the herd ran violently down a steep place into the'
+
+  -- sample matches, mark x john (highest score first, up to 10) --
+    [exact 1.00] mark: 'that I release unto you the King of the Jews'
+                     john: 'that I release unto you the King of the Jews'
+    [exact 1.00] mark: 'Hail, King of the Jews! 15:19 And they smote him'
+                     john: 'Hail, King of the Jews! and they smote him'
+    [exact 1.00] mark: 'The voice of one crying in the wilderness'
+                     john: 'the voice of one crying in the wilderness'
+    [exact 1.00] mark: 'that cometh in the name of the Lord'
+                     john: 'that cometh in the name of the Lord'
+    [exact 1.00] mark: 'that cometh in the name of the Lord'
+                     john: 'that cometh in the name of the Lord'
+    [exact 1.00] mark: 'him, Art thou the King of the Jews'
+                     john: 'him, Art thou the King of the Jews'
+    [near  0.95] mark: 'platted a crown of thorns, and put it about his head, 15:18 And'
+                     john: 'platted a crown of thorns, and put it on his head, and'
+    [near  0.89] mark: 'the hour is come; behold, the Son of man'
+                     john: 'The hour is come, that the Son of man'
+    [near  0.88] mark: 'one of the maids of the high priest'
+                     john: 'One of the servants of the high priest'
+
+  -- sample matches, luke x john (highest score first, up to 10) --
+    [exact 1.00] luke: 'that cometh in the name of the Lord. 14:1 And'
+                     john: 'that cometh in the name of the Lord. 12:14 And'
+    [exact 1.00] luke: 'The voice of one crying in the wilderness'
+                     john: 'the voice of one crying in the wilderness'
+    [exact 1.00] luke: 'that cometh in the name of the Lord'
+                     john: 'that cometh in the name of the Lord'
+    [exact 1.00] luke: 'and saith unto them, Peace be unto you'
+                     john: 'and saith unto them, Peace be unto you'
+
+==========================================================================================
+n-gram size = 4  (gap_tolerance=4, min_passage_tokens=8, no document-frequency filter)
+==========================================================================================
+  matthew  x mark      chains= 4529  min_len_ok=  212  final= 212  exact= 212  near=   0  score_mean=1.00
+  matthew  x luke      chains= 6487  min_len_ok=  213  final= 213  exact= 213  near=   0  score_mean=1.00
+  matthew  x john      chains= 4003  min_len_ok=    9  final=   9  exact=   9  near=   0  score_mean=1.00
+  mark     x luke      chains= 5172  min_len_ok=  132  final= 132  exact= 132  near=   0  score_mean=1.00
+  mark     x john      chains= 2296  min_len_ok=    7  final=   7  exact=   7  near=   0  score_mean=1.00
+  luke     x john      chains= 3043  min_len_ok=    4  final=   4  exact=   4  near=   0  score_mean=1.00
+
+==========================================================================================
+n-gram size = 5  (gap_tolerance=4, min_passage_tokens=8, no document-frequency filter)
+==========================================================================================
+  matthew  x mark      chains= 1556  min_len_ok=  212  final= 212  exact= 212  near=   0  score_mean=1.00
+  matthew  x luke      chains= 1708  min_len_ok=  213  final= 213  exact= 213  near=   0  score_mean=1.00
+  matthew  x john      chains= 1039  min_len_ok=    9  final=   9  exact=   9  near=   0  score_mean=1.00
+  mark     x luke      chains= 1729  min_len_ok=  132  final= 132  exact= 132  near=   0  score_mean=1.00
+  mark     x john      chains=  613  min_len_ok=    7  final=   7  exact=   7  near=   0  score_mean=1.00
+  luke     x john      chains=  530  min_len_ok=    4  final=   4  exact=   4  near=   0  score_mean=1.00
+
+==========================================================================================
+n-gram size = 6  (gap_tolerance=4, min_passage_tokens=8, no document-frequency filter)
+==========================================================================================
+  matthew  x mark      chains=  575  min_len_ok=  212  final= 212  exact= 212  near=   0  score_mean=1.00
+  matthew  x luke      chains=  543  min_len_ok=  213  final= 213  exact= 213  near=   0  score_mean=1.00
+  matthew  x john      chains=  108  min_len_ok=    9  final=   9  exact=   9  near=   0  score_mean=1.00
+  mark     x luke      chains=  431  min_len_ok=  132  final= 132  exact= 132  near=   0  score_mean=1.00
+  mark     x john      chains=   76  min_len_ok=    7  final=   7  exact=   7  near=   0  score_mean=1.00
+  luke     x john      chains=   63  min_len_ok=    4  final=   4  exact=   4  near=   0  score_mean=1.00
+
+==========================================================================================
+Document-frequency filter at n=3: Matthew x John
+==========================================================================================
+  no filter                     seeds= 21043  chains=15850  final=   9
+  max_document_frequency=3      seeds=  2998  chains=2674  final=   2
+
+  Most corpus-wide-frequent 3-grams (every document frequency value possible here is 1-4):
+    4x  'christ the son'
+    4x  'the son of'
+    4x  'his brethren and'
+    4x  'the holy ghost'
+    4x  'of the lord'
+    4x  'that which is'
+    4x  'holy ghost and'
+    4x  'and they shall'
+    4x  'the lord had'
+    4x  'when jesus was'
+
+==========================================================================================
+gap_tolerance sweep (n=3, min_passage_tokens=8) -- worst kept match at each setting
+==========================================================================================
+  gap=  2  final= 577  near=  0  lowest_score=1.00  (luke-john, exact)
+    luke: 'and saith unto them, Peace be unto you'
+    john: 'and saith unto them, Peace be unto you'
+  gap=  4  final= 659  near=166  lowest_score=0.84  (matthew-luke, near)
+    matthew: 'ye build the tombs of the prophets, and'
+    luke: 'ye build the sepulchres of the prophets, and'
+  gap=  8  final= 767  near=320  lowest_score=0.67  (matthew-mark, near)
+    matthew: 'Do ye not yet understand, neither remember the five loaves'
+    mark: 'do ye not remember?\n8:19 When I brake the five loaves'
+  gap= 16  final= 846  near=435  lowest_score=0.57  (matthew-luke, near)
+    matthew: 'of God.\n14:34 And when they were gone over, they came into the land of Gennesaret.\n14:35 And when the'
+    luke: 'of God.\n4:35 And Jesus rebuked him, saying, Hold thy peace, and come out of him. And when the'
+
+==========================================================================================
+min_passage_tokens sweep (n=3, gap_tolerance=4)
+==========================================================================================
+  min_len=  5  final=7176  near=193  lowest_score=0.82
+  min_len=  6  final=1852  near=193  lowest_score=0.82
+  min_len=  8  final= 659  near=166  lowest_score=0.84
+  min_len= 10  final= 368  near=117  lowest_score=0.87
+  min_len= 12  final= 245  near= 87  lowest_score=0.87
