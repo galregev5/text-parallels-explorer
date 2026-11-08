@@ -34,6 +34,32 @@ append an entry to `DECISIONS.md` with exactly three parts:
 7. No paid APIs and **no network access at runtime**.
 8. README covering: how to run, schema, algorithm, limitations, AI-assistance disclosure.
 
+## Phase plan (7 phases, from the owner's original brief)
+1. Corpus — KJV Gospels from Gutenberg #10, `corpus/SOURCES.md`. ✅
+2. Algorithm — seed-and-extend over word n-grams; n ∈ {3,4,5,6} experiment;
+   toy-example unit tests. ✅
+3. Database — documents / runs / parallels, upsert that never overwrites
+   status/note; run-twice test. ✅
+4. API + UI — startup pipeline + "Re-run" button; filtered/sorted/paginated list;
+   side-by-side detail with highlight, review buttons, note, prev/next. ✅
+5. Docker — `docker compose up` from a fresh clone builds, analyzes, serves on
+   :8000; verified from a clean state. ✅
+6. Additional features — PROPOSE, owner picks, each justified in README.
+   Candidates from the brief: word-level diff inside near matches; keyboard
+   shortcuts (j/k/a/r); CSV export of approved parallels; document-pair matrix of
+   parallel counts; adjustable thresholds in the UI.
+7. README — Overview, How to run, Corpus, Algorithm (with toy example), Schema,
+   Idempotency, Design decisions (summary of DECISIONS.md), Additional features +
+   why, Limitations & future work (Smith-Waterman refinement, MinHash/LSH,
+   embeddings for paraphrase, offsets shifting when params change), AI-assistance
+   disclosure.
+
+Where the implementation went beyond or departed from the brief, it is recorded in
+DECISIONS.md — notably 2.5 (overlap de-duplication, not in the brief's steps),
+2.6 (n=3 instead of the suggested 5), 2.7 (doc-frequency filter, built but off),
+3.5/4.6 (stale-row tracking + banner), 4.1 (skip-if-unchanged at startup),
+5.1 (PYTHONUNBUFFERED).
+
 ## Stack (fixed)
 Python 3.12 · FastAPI · SQLite on a Docker volume · rapidfuzz (or difflib) ·
 plain HTML + vanilla JS + CSS served by FastAPI, no build step ·
