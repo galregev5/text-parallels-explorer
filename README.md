@@ -244,9 +244,10 @@ sets; see the last limitation below.
   8 tokens of mostly-shared text, to be found at all. Retellings in different words are
   missed. *Future:* sentence embeddings, which would need a local model to keep the
   no-network rule.
-- **The score is character-level** (7.1), so substitutions with similar spelling score
-  higher than unrelated ones. A word-level ratio is a one-line change if the semantics
-  should be "share of words that match".
+- **The score is character-level** (7.1), by choice: a plural or spelling variant
+  ("village"/"villages", 0.989) scores higher than a different word ("village"/"city",
+  0.894), so real wording changes surface first when sorting by score. The cost is that
+  the score cannot be read as "share of words that match" (both would be 0.900 there).
 - **Scale.** Every document pair is compared, which grows with the square of the number of
   documents, and each pair builds its seed list in memory. Fine for four books; a large
   corpus would want *MinHash/LSH* to pick candidate pairs and a streaming chain step. The

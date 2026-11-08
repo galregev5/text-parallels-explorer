@@ -941,17 +941,24 @@ of 3 runs before the fix and passes after.
 
 ## Phase 7 -- README
 
-### 7.1 Correction: the score is character-level on normalized text, not word-level
+### 7.1 The score stays character-level on normalized text (docstring corrected)
 
-**Decision.** No behaviour change. The `score_passage` docstring and the README now
+**Decision.** Keep the character-level score; no behaviour change. Owner's decision, after
+seeing the comparison below. The `score_passage` docstring and the README now
 describe the score accurately: `rapidfuzz.fuzz.ratio` over the normalized tokens
 *joined into one string*, i.e. a character-level indel similarity on normalized text.
 
-**Alternatives considered.** Switch to a genuinely word-level score by passing the token
-lists themselves to `fuzz.ratio` (rapidfuzz compares any sequences of hashables), so
-every differing word costs the same. Left for the owner to decide, since it changes
-every stored near-match score (not counts or exact/near classification, which do not
-depend on the score; a re-run would update scores in place without losing review status).
+**Alternatives considered.**
+- *Word-level score*: pass the token lists themselves to `fuzz.ratio`, so every differing
+  word costs the same ("90% of words match").
+- *Both scores, researcher chooses in the UI*: store a second `word_score` column and add a
+  "score by letters / words" toggle that filtering, sorting, prev/next and export follow.
+  Feasible and additive (the score is not part of the uniqueness key, so idempotency and
+  review status are unaffected), but it touches every layer, needs a migration for
+  existing databases plus a fix so the startup skip-if-unchanged check (4.1) does not
+  leave the new column empty, and adds a second number to justify.
+- *Both scores shown, letter score used for sorting/filtering*: lighter (word score
+  computed on the fly for the detail page and CSV only), but still two numbers.
 
 **Why.** Found while writing the README's toy example. The old docstring claimed
 whole-word edits were "penalized once each rather than character-by-character", which
@@ -959,3 +966,12 @@ measurement contradicts: on the toy sentence, "jumps" -> "leaps" scores 0.948 an
 "jumps" -> "xyzzyq" scores 0.906 (letters in common earn partial credit); a word-level
 ratio would score both 0.917. Nothing downstream was wrong -- no filter thresholds on
 score -- but a false claim in the code is exactly what an interview would probe.
+
+Why letters over words, with an example. Two passages differing only in their last word
+("...go ye into the village" vs. "...the city" and vs. "...the villages"): the word-level
+score is 0.900 for both, since one word in ten changed. The letter score is 0.894 for
+"city" and 0.989 for "villages". For reviewing the KJV that is the more useful ordering:
+plurals, verb endings and spelling variants ("saith"/"said") sit near 1.0 and are easy to
+skip, while genuine wording changes ("multitude"/"people") score lower and surface first
+when sorting by score. One score with a clear justification was preferred over offering
+both.
