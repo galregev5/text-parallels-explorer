@@ -1,0 +1,10 @@
+# Default: text files are stored with LF in the repository and checked out with LF
+# on every platform. Without this, Git for Windows' core.autocrlf would check out
+# CRLF, which would break shell scripts and the Dockerfile inside the Linux container.
+* text=auto eol=lf
+
+# The corpus is offset-sensitive. Every character offset this project stores is an
+# index into these exact files, and corpus/SOURCES.md publishes their SHA-256 sums.
+# "-text" disables all end-of-line translation, so they are checked out byte-for-byte
+# as committed regardless of platform or of the user's core.autocrlf setting.
+corpus/*.txt -text

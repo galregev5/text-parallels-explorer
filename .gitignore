@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Application data (the SQLite database lives on a Docker volume)
+data/
+*.db
+*.sqlite3
+
+# Local scratch
+*.log
+.DS_Store
