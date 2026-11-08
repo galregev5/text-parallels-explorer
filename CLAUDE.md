@@ -53,7 +53,7 @@ append an entry to `DECISIONS.md` with exactly three parts:
    Idempotency, Design decisions (summary of DECISIONS.md), Additional features +
    why, Limitations & future work (Smith-Waterman refinement, MinHash/LSH,
    embeddings for paraphrase, offsets shifting when params change), AI-assistance
-   disclosure.
+   disclosure. ✅
 
 Where the implementation went beyond or departed from the brief, it is recorded in
 DECISIONS.md — notably 2.5 (overlap de-duplication, not in the brief's steps),

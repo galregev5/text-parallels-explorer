@@ -938,3 +938,24 @@ one connection with the override already applied (4.7), and `TestClient` seriali
 requests -- a first version of the regression test using `TestClient` from a thread pool
 passed *without* the fix, so it was replaced by the real-server version, which failed 3
 of 3 runs before the fix and passes after.
+
+## Phase 7 -- README
+
+### 7.1 Correction: the score is character-level on normalized text, not word-level
+
+**Decision.** No behaviour change. The `score_passage` docstring and the README now
+describe the score accurately: `rapidfuzz.fuzz.ratio` over the normalized tokens
+*joined into one string*, i.e. a character-level indel similarity on normalized text.
+
+**Alternatives considered.** Switch to a genuinely word-level score by passing the token
+lists themselves to `fuzz.ratio` (rapidfuzz compares any sequences of hashables), so
+every differing word costs the same. Left for the owner to decide, since it changes
+every stored near-match score (not counts or exact/near classification, which do not
+depend on the score; a re-run would update scores in place without losing review status).
+
+**Why.** Found while writing the README's toy example. The old docstring claimed
+whole-word edits were "penalized once each rather than character-by-character", which
+measurement contradicts: on the toy sentence, "jumps" -> "leaps" scores 0.948 and
+"jumps" -> "xyzzyq" scores 0.906 (letters in common earn partial credit); a word-level
+ratio would score both 0.917. Nothing downstream was wrong -- no filter thresholds on
+score -- but a false claim in the code is exactly what an interview would probe.

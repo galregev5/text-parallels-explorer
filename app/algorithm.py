@@ -185,10 +185,10 @@ def _candidate_from_chain(
 def score_passage(tokens_a: list[Token], tokens_b: list[Token]) -> tuple[float, str]:
     """Score a candidate passage's similarity and classify it exact or near.
 
-    The score is a token-level similarity ratio (0-1): the normalized token
-    sequences are joined into single strings and compared with rapidfuzz's
-    Levenshtein-based ratio, so insertions/deletions/substitutions of whole
-    words are penalized once each rather than character-by-character.
+    The score (0-1) is rapidfuzz's ratio over the normalized tokens joined
+    into single strings -- a CHARACTER-level indel similarity on normalized
+    text, not a count of whole-word edits: a substitution that shares letters
+    ("jumps"/"leaps") costs less than one that does not. See DECISIONS.md 7.1.
     "exact" means the normalized token sequences are identical (case and
     punctuation ignored, but no word added, removed, or substituted);
     anything else that passes the caller's threshold is "near".
