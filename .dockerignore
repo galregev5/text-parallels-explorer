@@ -1,0 +1,12 @@
+.git
+.gitattributes
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+data/
+*.db
+*.db-*
+docs/

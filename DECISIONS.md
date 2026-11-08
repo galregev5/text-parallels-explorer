@@ -800,3 +800,23 @@ first alarming result before re-deriving it a second, independent way -- the sam
 corpus this project analyzes has 166 curly apostrophes for exactly this kind of
 encoding mismatch to hide in, which is part of why the check was taken seriously
 rather than dismissed.
+
+## Phase 5 -- Docker
+
+### 5.1 `ENV PYTHONUNBUFFERED=1` in the Dockerfile
+
+**Decision.** The image sets `PYTHONUNBUFFERED=1`.
+
+**Alternatives considered.** Passing `flush=True` to the one `print` in
+`app/main.py`; switching that `print` to the `logging` module; running
+`python -u`.
+
+**Why.** Found while verifying `docker compose up` from a clean clone: on the
+first cold start the `[startup] analysis ran ...` line never appeared in
+`docker compose logs`, and on a restart it appeared *after* "Uvicorn running".
+Python block-buffers stdout when it is not a TTY, which is always the case in a
+container. The line is the only signal a reviewer gets that the analysis ran,
+so it has to appear, and in order. Setting the env var once in the image fixes
+every current and future `print` in the container. `flush=True` would fix only
+the one call site, and `python -u` would need the CMD to change from `uvicorn`
+to `python -m uvicorn` for no other benefit.

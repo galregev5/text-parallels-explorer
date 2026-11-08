@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume, not a bind mount: the SQLite file is the app's data,
+      # not part of the source tree, and should survive `docker compose up`
+      # being run again (or the image being rebuilt) without a fresh clone
+      # losing review status. `docker compose down -v` removes it explicitly.
+      - data:/app/data
+    environment:
+      # Matches app/config.py's own default (data/app.db, relative to
+      # WORKDIR /app) -- spelled out here anyway so the volume's mount
+      # point and the path the app writes to are visibly the same thing to
+      # anyone reading this file, without having to also check config.py.
+      - DATABASE_PATH=/app/data/app.db
+
+volumes:
+  data:
