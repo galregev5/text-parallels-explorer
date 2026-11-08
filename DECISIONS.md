@@ -457,3 +457,171 @@ deterministic order) and by adding the range tuple as an explicit secondary sort
 key. Verified by running the full experiment script twice in two separate Python
 processes with `PYTHONHASHSEED=random` (forcing a different seed each time) and
 diffing: output is now byte-for-byte identical.
+
+---
+
+## Phase 3 -- Database
+
+### 3.1 Plain `sqlite3` (stdlib), no ORM
+
+**Decision.** Use the standard library's `sqlite3` module directly, with the schema
+as a plain `.sql` file (`app/schema.sql`) executed via `executescript`. No SQLAlchemy
+or other ORM.
+
+**Alternatives considered.** SQLAlchemy Core (query builder, no ORM models);
+SQLAlchemy ORM; `aiosqlite` for an async driver.
+
+**Why.** Three tables, four write functions (`upsert_document`, `create_run`,
+`upsert_parallel`, plus the schema setup), and no query complex enough to need a
+query builder -- CLAUDE.md's "prefer the standard library unless a dependency
+clearly pays for itself" does not see one here. An ORM would add a mapping layer
+between Python objects and rows for a schema that is simple enough to read directly
+as SQL, and the project's one truly delicate piece of SQL -- the `ON CONFLICT ... DO
+UPDATE` upsert that is the whole idempotency mechanism -- is clearer written as SQL
+than reconstructed through an ORM's upsert API. `aiosqlite` was not needed: FastAPI
+(Phase 4) can call synchronous `sqlite3` from a thread without friction at this
+request volume, and SQLite only supports one writer at a time regardless of which
+Python driver asks.
+
+### 3.2 Schema as a `.sql` file, not inline Python strings
+
+**Decision.** `app/schema.sql` holds `CREATE TABLE`/`CREATE INDEX` statements with
+SQL comments explaining each constraint; `app/db.py` loads and executes it once per
+connection (`CREATE TABLE IF NOT EXISTS`, safe to re-run).
+
+**Why.** It is SQL, so it reads as SQL -- proper syntax highlighting, no Python
+triple-quote escaping, and it is literally the artifact you would hand someone to
+explain the schema, rather than something to reconstruct by reading Python. Running
+it on every `connect()` call (guarded by `IF NOT EXISTS`) means there is no separate
+migration step to forget: a fresh container's empty volume and an existing one with
+data both just work.
+
+### 3.3 Canonical pair ordering is enforced in the database, not just promised by the caller
+
+**Decision.** Two defenses, not one: `upsert_parallel` reorders `(doc_a_id,
+doc_b_id)` and their matching offsets whenever `doc_a_id > doc_b_id` is passed in,
+and the schema additionally has `CHECK (doc_a_id < doc_b_id)`.
+
+**Alternatives considered.** Document the rule ("always pass doc_a_id < doc_b_id")
+and trust callers, as the assignment's own phrasing ("Always store pairs with
+doc_a_id < doc_b_id") reads at face value.
+
+**Why.** `app/pipeline.py` happens to always call `upsert_parallel` with ids already
+ascending, because `itertools.combinations` over a slug list whose insertion order
+happens to match the ids assigned to it produces pairs in ascending order -- which
+is a coincidence of today's corpus loading order, not a guarantee. A future corpus
+addition, a reordered `DOCUMENTS` list, or a second caller added in Phase 4 could
+easily call it the other way around without anything failing loudly. Reordering in
+`upsert_parallel` itself makes correctness independent of call order, verified
+directly (`test_upsert_parallel_reorders_a_reversed_pair_to_canonical_order`): calling
+it with the pair and its offsets both reversed produces the identical stored row as
+calling it the "right" way round. The `CHECK` constraint is redundant with that in the
+normal path, deliberately: it is what turns "I reordered it in upsert_parallel but
+missed a case" into a loud `IntegrityError` at write time instead of a silently
+wrong row sitting in the database.
+
+### 3.4 The idempotency mechanism is three plain decisions, not one clever one
+
+**Decision.** (1) `parallels` has `UNIQUE (doc_a_id, doc_b_id, a_start, a_end,
+b_start, b_end)`. (2) `upsert_parallel`'s `ON CONFLICT ... DO UPDATE` names only
+`score`, `match_type`, `last_seen_run_id` in its `SET` clause. (3) `status` and `note`
+are simply absent from that list.
+
+**Why (3) is the whole mechanism, and the risk of doing it differently.** SQLite's
+upsert updates only the columns named in `SET`; every other column on the conflicting
+row keeps its existing value. So leaving `status`/`note` out of the `SET` clause is
+not a safeguard bolted on top of the upsert -- it IS the guarantee that a researcher's
+review is never overwritten by a re-run, with no `CASE WHEN status IS NULL THEN ...`
+logic needed anywhere. The alternative that was explicitly rejected: writing
+`status = COALESCE(parallels.status, excluded.status)` or similar to "preserve unless
+unset" -- that is strictly more code expressing the same guarantee less directly, and
+invites a future edit to that `COALESCE` expression to get it backwards. Verified
+directly (`test_upsert_parallel_refreshes_score_and_run_but_never_status_or_note`,
+and end-to-end through a real pipeline run in
+`test_a_status_set_between_runs_survives_a_rerun`): setting a row's status and note,
+then re-running the full pipeline, leaves both untouched while score and
+`last_seen_run_id` do refresh.
+
+### 3.5 `last_seen_run_id`, not a delete-and-reinsert, across parameter changes
+
+**Decision.** A re-run never deletes a `parallels` row. If a changed parameter
+(e.g. a different `ngram_size`) means a passage's chain no longer produces the same
+`(a_start, a_end, b_start, b_end)` key, the old row is simply never revisited --
+its `last_seen_run_id` keeps pointing at whatever run last touched it, falling behind
+`runs`'s latest id.
+
+**Alternatives considered.** Before each run, delete every `parallels` row and
+reinsert from scratch (loses all review status on every re-run -- a non-starter
+against requirement 3). Delete only rows not touched by the current run, after it
+finishes (loses the *history* of what an earlier parameter choice found, and deletes
+a status/note along with the row it was attached to -- the same problem one layer
+down).
+
+**Why.** `last_seen_run_id` turns "did this row survive the latest analysis" into a
+cheap comparison (`last_seen_run_id = (SELECT MAX(id) FROM runs)`) instead of a
+destructive operation, and keeps a reviewed decision attached to its row
+indefinitely, even if a later parameter change stops reproducing that exact passage.
+This was flagged as a real gap before Phase 3 started: the idempotency guarantee
+holds *only while parameters are unchanged*, and changing them produces new rows
+plus old ones that are now stale but still present. `last_seen_run_id` is that gap's
+intended fix, and `test_changing_params_adds_rows_without_touching_the_old_ones`
+demonstrates the exact scenario: changing `min_passage_tokens` between two runs adds
+no new rows (correctly -- nothing in the toy corpus is long enough under the
+stricter setting) while leaving the first run's row, and its researcher-set status,
+sitting at the old run's id, now visibly behind the latest run. Phase 4's API is
+where this becomes visible to the researcher (a "latest run only" default filter and
+a stale-count indicator, both already flagged as planned there); the database layer's
+job is only to make that query possible without losing anything, which it now does.
+
+### 3.6 A run commits as a single transaction
+
+**Decision.** `run_pipeline` wraps the whole run -- every document upsert, the new
+`runs` row, every `parallels` upsert across every document pair -- in one `with
+conn:` block, which commits once at the end or rolls back entirely on any exception.
+`app/db.py`'s individual functions never call `conn.commit()` themselves; the caller
+owns the transaction boundary.
+
+**Alternatives considered.** Commit after each document, or after each pair, so a
+crash partway through a long run keeps whatever had already succeeded.
+
+**Why.** A run that is half-applied is worse than one that never started: it would
+leave `parallels` rows tagged with a `run_id` whose row exists in `runs`, looking
+exactly like a complete, successful run to anything querying `last_seen_run_id`
+later, when really only three of six document pairs were ever processed. For a
+corpus this size (the whole pipeline runs in under a second, per the Phase 2
+experiment) there is no real cost to atomicity, and the one place it was tested
+directly (`test_data_persists_across_a_close_and_reconnect`) is also what surfaced
+the commit convention clearly: calling `app/db.py` functions directly, outside
+`run_pipeline`'s `with conn:`, requires the caller to commit explicitly, which is now
+stated in `app/db.py`'s module docstring rather than left to be discovered by a
+failed test.
+
+### 3.7 `content_hash` makes a repeated document upsert a no-op, and documents the one case it does not fully cover
+
+**Decision.** `upsert_document` hashes the incoming content and only writes
+(`UPDATE`) if the hash differs from what is stored; an unchanged document is not
+written to at all.
+
+**Why.** Avoids a write (and a changed row, however harmlessly, in `documents`)
+every single time the pipeline runs against a corpus that has not changed, which is
+every run in this project's actual usage (the corpus files are committed, static
+data). The one scenario this does not fully resolve, noted rather than solved here:
+if a document's content *did* change and the pipeline re-ran, every character offset
+computed against the old content is now describing the wrong text, and those rows
+become stale in exactly the same sense -- and by exactly the same `last_seen_run_id`
+mechanism -- as rows made stale by a changed algorithm parameter (3.5). No special
+handling was added for this case specifically, because the general staleness
+mechanism already covers it and the corpus is not expected to change at runtime in
+this project; it is listed under README limitations as a case future work (e.g. an
+explicit "invalidate this document's parallels" action) could make visible rather
+than merely survivable.
+
+### 3.8 Verified end-to-end: Phase 2's experiment total reproduces exactly through storage
+
+**Decision/verification, not a choice.** Running `run_pipeline` on the real corpus
+with the chosen default `Params()` stores exactly 659 `parallels` rows -- the same
+total Phase 2's experiment measured directly from the algorithm
+(244+239+9+154+9+4, matching per-pair too), with zero rows violating
+`doc_a_id < doc_b_id`. Recorded here because it is the check that Phase 2's numbers
+and Phase 3's storage layer are not just each individually tested, but actually
+agree with each other on the real data, not only on synthetic toy cases.
