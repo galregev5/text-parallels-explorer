@@ -625,3 +625,178 @@ total Phase 2's experiment measured directly from the algorithm
 `doc_a_id < doc_b_id`. Recorded here because it is the check that Phase 2's numbers
 and Phase 3's storage layer are not just each individually tested, but actually
 agree with each other on the real data, not only on synthetic toy cases.
+
+---
+
+## Phase 4 -- API + UI
+
+### 4.1 `run_pipeline` gains skip-if-unchanged / force, instead of a second function
+
+**Decision.** Extend `run_pipeline` (Phase 3) with a `force: bool = False` parameter
+and a changed return type (`dict`, not a bare `int`). Unless `force=True`, the whole
+analysis is skipped -- no new `runs` row, no re-chaining -- when every document's
+content hash already matches what is stored AND the given `params` are identical to
+the most recent run's. Container start calls it with `force=False`; the "re-run
+analysis" button calls it with `force=True`.
+
+**Alternatives considered.** A second function (`run_pipeline_if_needed` or similar)
+that wraps `run_pipeline`, leaving the original untouched.
+
+**Why.** A second function would duplicate the "has anything changed" check outside
+the one place that already has every fact needed to answer it cheaply (the function
+is already upserting every document and already has the new params in hand) and
+would need its own test coverage for the same logic. This is a deliberate,
+documented break of Phase 3's return-type contract (bare `int` -> `dict`), not an
+accidental one: callers (the Phase 3 tests, now updated) must use `result["run_id"]`.
+Breaking it was preferred over bolting the new behavior on top as a second code path,
+because the two call sites need to share the exact same staleness logic -- a bug in
+one path and not the other would be a worse outcome than a one-time interface change
+caught immediately by the test suite. The three new tests this needed
+(`test_an_unforced_rerun_with_nothing_changed_is_skipped` and its two "actually did
+change" counterparts) assert on the number of `runs` rows created, not just on
+`total_parallels`, so a regression that silently re-ran the algorithm without
+actually needing to would be caught even though it would not change the final count.
+
+### 4.2 One SQLite connection per HTTP request, not one shared connection
+
+**Decision.** `app/api.py`'s `get_conn` dependency opens a fresh `sqlite3`
+connection via `app.db.connect()` for every request and closes it at the end,
+committing on a clean exit and rolling back on an exception -- the same "caller owns
+the transaction boundary" convention Phase 3 established for `app/db.py`'s functions,
+with the FastAPI dependency now playing the role of that caller.
+
+**Alternatives considered.** One connection, opened once at startup and reused by
+every request handler.
+
+**Why.** `sqlite3` connections are not safe to use from a thread other than the one
+that created them (`check_same_thread=True` by default, and for good reason), and
+FastAPI runs synchronous route handlers in a thread pool -- so a single shared
+connection would be a predictable concurrency bug, not a theoretical one. This was
+not a guess: writing the first API test with one shared connection reused across a
+`TestClient`'s requests reproduced exactly this failure
+(`sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in
+that same thread`), which is what the per-request pattern avoids in production and
+what the test fixture works around deliberately and explicitly for its own,
+different reason (see 4.6). SQLite itself handles multiple connections to one file
+natively -- this is the standard pattern, not a workaround for a limitation.
+
+### 4.3 `upsert_parallel` (pipeline-owned) and `update_review` (researcher-owned) stay two functions
+
+**Decision.** The PATCH endpoint's write goes through a new `app/db.py` function,
+`update_review(conn, parallel_id, status=None, note=None)`, which touches only
+`status`/`note` -- never `score`, `match_type`, or `last_seen_run_id`, which stay
+exclusively `upsert_parallel`'s to write.
+
+**Why.** This mirrors, at the API layer, the separation Phase 3 already built into
+the schema and the upsert's `SET` clause (3.4): two columns belong to the researcher,
+the rest belong to the pipeline, and the two write paths should be unable to step on
+each other by construction, not by convention someone has to remember. A single
+`update_parallel(conn, **kwargs)` that could set any column would have made that
+invariant something a caller could violate by accident; two narrowly-scoped functions
+make it something that cannot happen rather than something that is merely discouraged.
+
+### 4.4 Snippets and search read only the matched span via `SUBSTR`, not full document content
+
+**Decision.** The list query selects `SUBSTR(da.content, a_start+1, a_end-a_start)`
+(and the same for `db.content`) rather than the documents' full content; the same
+`SUBSTR` expression, lower-cased, backs the `q` text-search filter.
+
+**Alternatives considered.** Store a separate `snippet` column on `parallels`,
+written once at pipeline time. Fetch each row's full document content in the API
+layer and slice it in Python.
+
+**Why.** A stored snippet column would be a second copy of text that already exists
+in `documents.content`, and it is exactly the kind of denormalization that drifts:
+nothing would keep it in sync if the offsets it was derived from were ever
+recomputed under different parameters. Deriving it at query time from the same
+offsets everything else uses keeps one single source of truth for "what text does
+this match cover" -- the character offsets -- consistent with the project's whole
+premise (character offsets, not stored strings, are the ground truth). Doing the
+`SUBSTR` in SQL rather than fetching full content into Python matters at this
+corpus's scale mainly for the list endpoint: paginating 50 rows would otherwise mean
+transferring up to 100 full ~100KB documents from SQLite to Python on every page
+load, for a cell that only ever shows ~160 characters of it. SQLite's 1-based,
+character-indexed `SUBSTR` (not byte-indexed, confirmed directly against the real
+corpus's curly-apostrophe text) lines up directly with the project's 0-based,
+character-indexed stored offsets via the `+1` translation, with no further
+conversion needed.
+
+### 4.5 Prev/next navigation is computed in the SAME filtered, sorted context as the list page
+
+**Decision.** The detail endpoint (`GET /api/parallels/{id}`) accepts the identical
+filter and sort query parameters as the list endpoint, and uses them to compute
+`prev_id`/`next_id` by finding `{id}`'s position in that same filtered id-ordered
+list -- not in some separate, always-global ordering. If `{id}` does not appear in
+that filtered set at all, both come back `null` rather than falling back to a
+different ordering silently.
+
+**Alternatives considered.** A separate `/parallels/{id}/adjacent` endpoint. Prev/next
+always computed over the unfiltered table, regardless of what the list page was
+showing.
+
+**Why.** "Next" has to mean "the next one I would have clicked on from the list I was
+just looking at" -- navigating within a filtered review queue (say, every pending
+`near` match) is the whole point of having filters on the list page at all; prev/next
+over the unfiltered table would walk the researcher back out into rows their filter
+had deliberately excluded, silently. Bundling it into the existing GET instead of a
+separate endpoint means the detail page's one fetch is self-sufficient: it already
+has to carry the filter/sort state through the URL for the back-link regardless, so
+reusing those same query parameters for navigation adds no new state to track,
+instead of asking the client to call a second endpoint with the same parameters a
+second time. `app/queries.py`'s `build_where` is the single function both the list
+endpoint and this navigation lookup call, specifically so they cannot drift apart --
+confirmed directly (`test_prev_next_navigation_covers_the_whole_filtered_set_exactly_once`):
+walking a filtered set end-to-end via `next_id` alone visits every id in it exactly
+once, in the same order the list endpoint itself returns.
+
+### 4.6 Stale rows get a visible count and a one-click filter, not silent handling
+
+**Decision.** `GET /api/parallels` always returns `stale_count` (rows whose
+`last_seen_run_id` is behind the latest run) alongside the page of results, and
+accepts `latest_only=true` to filter them out entirely. The list page shows a banner
+naming the count whenever it is nonzero.
+
+**Why.** This is the direct, promised follow-through on the gap flagged after Phase 1
+and mechanized in Phase 3 (3.5): `last_seen_run_id` makes staleness detectable in the
+database, but detectable is not the same as visible. A researcher reviewing a list
+that quietly mixes current results with leftovers from a different parameter choice,
+with no indication which is which, has the exact blind spot the mechanism was built
+to prevent. Returning the count on every list response (not a separate endpoint to
+remember to call) means the UI cannot forget to show it.
+
+### 4.7 API test connections use `check_same_thread=False`, added as an explicit, narrow opt-out
+
+**Decision.** `app/db.py`'s `connect()` gained a `check_same_thread: bool = True`
+keyword, with a docstring stating plainly that production code should never pass it
+and pointing at 4.2's per-request pattern as what to use instead. The API test
+fixture is the one caller that passes `False`, with a comment at the call site
+explaining why.
+
+**Why.** Writing the first API test surfaced the same thread-affinity error 4.2's
+design exists to prevent, for a different reason: a *test* fixture wants ONE shared
+connection across a test's several requests (so a PATCH in one request is visible to
+a GET in the next, within one test), while `TestClient` still dispatches each request
+through FastAPI's thread pool, same as production. That is sequential cross-thread
+use of one connection -- never concurrent, since a test issues one request at a time --
+which is exactly the case `check_same_thread` exists to allow an informed caller to
+opt out of, not the case it exists to prevent. Adding this as a named, documented
+parameter (rather than, say, quietly passing `check_same_thread=False` from inside
+the test by reaching past `connect()`) keeps the opt-out visible at the one place
+production code must never copy it from.
+
+### 4.8 Caught before it caused a false alarm: curl-into-`python -c` on Windows can misdecode UTF-8
+
+**Not a code decision -- a tooling caveat worth recording.** While smoke-testing the
+running server, piping `curl`'s output directly into `python -c "..."`'s stdin
+appeared to show a genuine bug: the same `a_start`/`a_end` pair, applied to the same
+document's content, produced two different substrings depending on which of two
+nearly-identical debugging commands fetched it. Re-fetching to a file and reading it
+back with `encoding="utf-8"` explicit reproduced the correct text both ways, and a
+third check -- `SUBSTR` and a direct Python slice, both run against the live SQLite
+file with no HTTP or `curl` involved -- agreed with each other immediately. The cause
+was narrowed to the shell pipe into Python's stdin on this Windows setup, not
+anything in `app/`. Recorded because the instinct that mattered was not trusting the
+first alarming result before re-deriving it a second, independent way -- the same
+corpus this project analyzes has 166 curly apostrophes for exactly this kind of
+encoding mismatch to hide in, which is part of why the check was taken seriously
+rather than dismissed.

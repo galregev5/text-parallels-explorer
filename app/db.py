@@ -22,15 +22,22 @@ from pathlib import Path
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
-def connect(db_path: str | Path) -> sqlite3.Connection:
+def connect(db_path: str | Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
     """Open a connection to the SQLite file at `db_path`, creating the schema
     if it does not exist yet. `db_path` may be ":memory:" for a throwaway
     in-process database (used by the test suite).
+
+    `check_same_thread=False` is only for a test fixture that shares ONE
+    connection across several TestClient requests, each of which FastAPI may
+    dispatch to a different thread-pool worker thread -- a sequential, never
+    actually concurrent, use that sqlite3's check exists to forbid anyway.
+    Production code should never pass this: `app/api.py`'s `get_conn` opens
+    a fresh connection per request instead, which needs no such override.
     """
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     # WAL lets a read (the UI, serving a page) proceed while a write (a
@@ -117,3 +124,43 @@ def upsert_parallel(
         """,
         (doc_a_id, doc_b_id, a_start, a_end, b_start, b_end, score, match_type, run_id),
     )
+
+
+def update_review(conn: sqlite3.Connection, parallel_id: int, status: str | None = None, note: str | None = None) -> bool:
+    """Update the RESEARCHER-owned columns of one parallel: `status` and/or `note`.
+
+    Deliberately separate from `upsert_parallel`, which owns the
+    PIPELINE-owned columns (score, match_type, last_seen_run_id) -- the two
+    functions never touch each other's columns, so a reviewer's edit can
+    never be confused with a re-run's refresh or vice versa.
+
+    `status`/`note` left as `None` are not changed (so a caller can update
+    just one of the two). Returns False if no row with this id exists.
+    """
+    sets, values = [], []
+    if status is not None:
+        sets.append("status = ?")
+        values.append(status)
+    if note is not None:
+        sets.append("note = ?")
+        values.append(note)
+
+    if not sets:
+        row = conn.execute("SELECT 1 FROM parallels WHERE id = ?", (parallel_id,)).fetchone()
+        return row is not None
+
+    values.append(parallel_id)
+    cursor = conn.execute(f"UPDATE parallels SET {', '.join(sets)} WHERE id = ?", values)
+    return cursor.rowcount > 0
+
+
+def latest_run(conn: sqlite3.Connection) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+
+
+def list_documents(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT id, slug, title FROM documents ORDER BY id").fetchall()
+
+
+def get_document(conn: sqlite3.Connection, doc_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()

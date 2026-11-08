@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Parallel detail &mdash; Text Parallels Explorer</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Text Parallels Explorer</h1>
+    <span class="meta" id="runMeta"></span>
+  </header>
+
+  <main>
+    <div class="detail-toolbar">
+      <a id="backLink" href="/">&larr; Back to list</a>
+      <div class="nav">
+        <button id="prevButton">&larr; Previous</button>
+        <button id="nextButton">Next &rarr;</button>
+      </div>
+    </div>
+
+    <div class="review-panel" id="reviewPanel" hidden>
+      <span>Score: <span class="score" id="scoreValue"></span></span>
+      <span class="match-type" id="typeValue"></span>
+      <div class="status-buttons">
+        <button data-status="pending">Pending</button>
+        <button data-status="approved">Approve</button>
+        <button data-status="rejected">Reject</button>
+      </div>
+      <textarea id="noteField" placeholder="Note (optional)" rows="1"></textarea>
+      <button id="saveNoteButton">Save note</button>
+      <span id="saveState" class="meta"></span>
+    </div>
+
+    <div id="body">
+      <p class="loading">Loading...</p>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script src="/detail.js"></script>
+</body>
+</html>

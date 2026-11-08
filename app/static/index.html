@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Text Parallels Explorer</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Text Parallels Explorer</h1>
+    <span class="meta" id="runMeta"></span>
+    <button id="rerunButton">Re-run analysis</button>
+  </header>
+
+  <main>
+    <div id="staleBanner" class="stale-banner" hidden></div>
+
+    <form class="filters" id="filterForm">
+      <label>Document A
+        <select name="doc_a"><option value="">Any</option></select>
+      </label>
+      <label>Document B
+        <select name="doc_b"><option value="">Any</option></select>
+      </label>
+      <label>Type
+        <select name="match_type">
+          <option value="">Any</option>
+          <option value="exact">Exact</option>
+          <option value="near">Near</option>
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          <option value="">Any</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </label>
+      <label>Min score
+        <input type="number" name="min_score" min="0" max="1" step="0.05" />
+      </label>
+      <label>Max score
+        <input type="number" name="max_score" min="0" max="1" step="0.05" />
+      </label>
+      <label>Search
+        <input type="text" name="q" placeholder="words in the matched text" />
+      </label>
+      <label>
+        <input type="checkbox" name="latest_only" style="width:auto" /> Latest run only
+      </label>
+      <label>Sort
+        <select name="sort">
+          <option value="score_desc">Score, high to low</option>
+          <option value="score_asc">Score, low to high</option>
+          <option value="id_desc">Newest first</option>
+          <option value="id_asc">Oldest first</option>
+        </select>
+      </label>
+      <button type="submit" class="primary">Apply</button>
+      <button type="button" id="resetButton">Reset</button>
+    </form>
+
+    <table>
+      <thead>
+        <tr><th>Pair</th><th>Snippet</th><th>Score</th><th>Type</th><th>Status</th></tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="5" class="loading">Loading...</td></tr>
+      </tbody>
+    </table>
+
+    <div class="pager">
+      <button id="prevPage">&larr; Prev</button>
+      <span class="count" id="pageCount"></span>
+      <button id="nextPage">Next &rarr;</button>
+      <label>Page size
+        <select id="pageSize">
+          <option>25</option>
+          <option selected>50</option>
+          <option>100</option>
+        </select>
+      </label>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script src="/list.js"></script>
+</body>
+</html>
