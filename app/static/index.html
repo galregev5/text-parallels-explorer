@@ -15,6 +15,11 @@
   <main>
     <div id="staleBanner" class="stale-banner" hidden></div>
 
+    <section class="matrix-section">
+      <h2>Parallels per document pair <span class="meta">(latest run · click a cell to filter)</span></h2>
+      <table class="matrix" id="matrix"></table>
+    </section>
+
     <form class="filters" id="filterForm">
       <label>Document A
         <select name="doc_a"><option value="">Any</option></select>
@@ -59,6 +64,7 @@
       </label>
       <button type="submit" class="primary">Apply</button>
       <button type="button" id="resetButton">Reset</button>
+      <button type="button" id="exportButton" title="Approved parallels matching the other filters">Export approved (CSV)</button>
     </form>
 
     <table>

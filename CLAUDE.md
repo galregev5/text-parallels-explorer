@@ -44,7 +44,8 @@ append an entry to `DECISIONS.md` with exactly three parts:
    side-by-side detail with highlight, review buttons, note, prev/next. ✅
 5. Docker — `docker compose up` from a fresh clone builds, analyzes, serves on
    :8000; verified from a clean state. ✅
-6. Additional features — PROPOSE, owner picks, each justified in README.
+6. Additional features — owner picked: word diff, pair matrix, keyboard
+   shortcuts, CSV export (DECISIONS 6.x). Thresholds-in-UI not built. ✅
    Candidates from the brief: word-level diff inside near matches; keyboard
    shortcuts (j/k/a/r); CSV export of approved parallels; document-pair matrix of
    parallel counts; adjustable thresholds in the UI.

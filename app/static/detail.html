@@ -31,7 +31,11 @@
       <textarea id="noteField" placeholder="Note (optional)" rows="1"></textarea>
       <button id="saveNoteButton">Save note</button>
       <span id="saveState" class="meta"></span>
+      <span class="key-hint">Keys: <kbd>j</kbd>/<kbd>k</kbd> next/prev · <kbd>a</kbd> approve · <kbd>r</kbd> reject · <kbd>p</kbd> pending</span>
     </div>
+    <p class="legend" id="diffLegend" hidden>
+      <mark>Matched passage</mark> · <mark><span class="diff">words that differ</span></mark> from the other side
+    </p>
 
     <div id="body">
       <p class="loading">Loading...</p>

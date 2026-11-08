@@ -9,9 +9,9 @@ const navFilters = sharedFilters(params); // everything except `id` itself
 
 let currentStatus = null;
 
-function renderColumn(doc, start, end) {
+function renderColumn(doc, start, end, diffSpans) {
   const before = escapeHtml(doc.content.slice(0, start));
-  const matched = escapeHtml(doc.content.slice(start, end));
+  const matched = renderMatchedPassage(doc.content, start, end, diffSpans);
   const after = escapeHtml(doc.content.slice(end));
   return `
     <div class="column">
@@ -19,6 +19,20 @@ function renderColumn(doc, start, end) {
       <div class="text">${before}<mark>${matched}</mark>${after}</div>
     </div>
   `;
+}
+
+// The matched passage, with the words that differ from the other side
+// (diffSpans: [start, end) offsets into the full document, from the API)
+// wrapped in a second, stronger highlight nested inside the passage's own.
+function renderMatchedPassage(content, start, end, diffSpans) {
+  let html = "";
+  let cursor = start;
+  for (const [spanStart, spanEnd] of diffSpans) {
+    html += escapeHtml(content.slice(cursor, spanStart));
+    html += `<span class="diff">${escapeHtml(content.slice(spanStart, spanEnd))}</span>`;
+    cursor = spanEnd;
+  }
+  return html + escapeHtml(content.slice(cursor, end));
 }
 
 function setActiveStatusButton(status) {
@@ -55,14 +69,15 @@ async function loadDetail() {
   document.getElementById("typeValue").textContent = data.match_type + (data.is_stale ? " · stale" : "");
   document.getElementById("noteField").value = data.note || "";
   setActiveStatusButton(data.status);
+  document.getElementById("diffLegend").hidden = data.diff_a.length + data.diff_b.length === 0;
 
   document.getElementById("body").innerHTML = `
     <div class="columns">
-      ${renderColumn(data.doc_a, data.a_start, data.a_end)}
-      ${renderColumn(data.doc_b, data.b_start, data.b_end)}
+      ${renderColumn(data.doc_a, data.a_start, data.a_end, data.diff_a)}
+      ${renderColumn(data.doc_b, data.b_start, data.b_end, data.diff_b)}
     </div>
   `;
-  document.querySelectorAll("mark").forEach((mark) => mark.scrollIntoView({ block: "center" }));
+  document.querySelectorAll(".column mark").forEach((mark) => mark.scrollIntoView({ block: "center" }));
 
   document.getElementById("prevButton").disabled = data.prev_id === null;
   document.getElementById("prevButton").onclick = () => navigateTo(data.prev_id);
@@ -70,17 +85,19 @@ async function loadDetail() {
   document.getElementById("nextButton").onclick = () => navigateTo(data.next_id);
 }
 
+async function setStatus(status) {
+  const previous = currentStatus;
+  setActiveStatusButton(status); // optimistic
+  try {
+    await apiPatch(`/parallels/${parallelId}`, { status });
+  } catch (err) {
+    setActiveStatusButton(previous);
+    alert(`Could not update status: ${err.message}`);
+  }
+}
+
 document.querySelectorAll(".status-buttons button").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const status = button.dataset.status;
-    setActiveStatusButton(status); // optimistic
-    try {
-      await apiPatch(`/parallels/${parallelId}`, { status });
-    } catch (err) {
-      setActiveStatusButton(currentStatus);
-      alert(`Could not update status: ${err.message}`);
-    }
-  });
+  button.addEventListener("click", () => setStatus(button.dataset.status));
 });
 
 document.getElementById("saveNoteButton").addEventListener("click", async () => {
@@ -95,6 +112,26 @@ document.getElementById("saveNoteButton").addEventListener("click", async () => 
   }
 });
 
-// j/k-free keyboard support kept out deliberately -- it's a Phase 6
-// candidate feature to propose and justify separately, not baseline.
+// Keyboard review: j/k move through the same filtered set the prev/next
+// buttons do (by clicking them, so a disabled button is a no-op); a/r/p set
+// the status. Deliberately no auto-advance after a/r -- the researcher sees
+// the badge change before moving on with j. Ignored while typing a note.
+const KEY_ACTIONS = {
+  j: () => document.getElementById("nextButton").click(),
+  k: () => document.getElementById("prevButton").click(),
+  a: () => setStatus("approved"),
+  r: () => setStatus("rejected"),
+  p: () => setStatus("pending"),
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.target.closest("input, textarea, select")) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const action = KEY_ACTIONS[event.key.toLowerCase()];
+  if (action && !document.getElementById("reviewPanel").hidden) {
+    event.preventDefault();
+    action();
+  }
+});
+
 loadDetail();

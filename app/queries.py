@@ -115,6 +115,46 @@ def list_parallels(
     ).fetchall()
 
 
+def export_rows(conn: sqlite3.Connection, filters: ParallelFilters, sort: str = DEFAULT_SORT) -> list[sqlite3.Row]:
+    """Every row in `filters`' set, in `sort` order, unpaginated -- for CSV export."""
+    where_sql, params = build_where(filters)
+    order_sql = SORT_OPTIONS.get(sort, SORT_OPTIONS[DEFAULT_SORT])
+    return conn.execute(
+        f"""
+        SELECT p.*,
+               da.slug AS doc_a_slug, db.slug AS doc_b_slug,
+               SUBSTR(da.content, p.a_start + 1, p.a_end - p.a_start) AS text_a,
+               SUBSTR(db.content, p.b_start + 1, p.b_end - p.b_start) AS text_b
+        {FROM_CLAUSE}
+        WHERE {where_sql}
+        ORDER BY {order_sql}
+        """,
+        params,
+    ).fetchall()
+
+
+def pair_counts(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Per document pair: parallel counts from the LATEST run only, by type and status.
+
+    Latest run only: the matrix summarizes the current analysis. Stale rows
+    from earlier parameter choices would inflate the counts without saying
+    so; they already have their own banner and filter on the list page.
+    """
+    return conn.execute(
+        """
+        SELECT doc_a_id, doc_b_id,
+               COUNT(*) AS total,
+               SUM(match_type = 'exact') AS exact,
+               SUM(match_type = 'near') AS near,
+               SUM(status = 'approved') AS approved,
+               SUM(status = 'rejected') AS rejected
+        FROM parallels
+        WHERE last_seen_run_id = (SELECT MAX(id) FROM runs)
+        GROUP BY doc_a_id, doc_b_id
+        """
+    ).fetchall()
+
+
 def ordered_ids(conn: sqlite3.Connection, filters: ParallelFilters, sort: str = DEFAULT_SORT) -> list[int]:
     """Every id in `filters`' set, in `sort` order -- for prev/next lookup.
 

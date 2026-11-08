@@ -117,6 +117,56 @@ async function loadList() {
   }
 }
 
+// --- document-pair matrix ---------------------------------------------------
+// Symmetric: cell (row, col) and (col, row) show the same pair, so either
+// one can be clicked. The API returns each pair once, with doc_a_id < doc_b_id.
+
+function pairKey(idA, idB) {
+  return idA < idB ? `${idA}-${idB}` : `${idB}-${idA}`;
+}
+
+function renderMatrixCell(rowDoc, colDoc, countsByPair) {
+  if (rowDoc.id === colDoc.id) return '<td class="diagonal">&mdash;</td>';
+  const counts = countsByPair.get(pairKey(rowDoc.id, colDoc.id));
+  if (!counts) return `<td class="cell" data-a="${rowDoc.id}" data-b="${colDoc.id}">0</td>`;
+  return `
+    <td class="cell" data-a="${rowDoc.id}" data-b="${colDoc.id}"
+        title="${counts.exact} exact, ${counts.near} near · ${counts.approved} approved, ${counts.rejected} rejected">
+      <strong>${counts.total}</strong>
+      <span class="breakdown">${counts.exact} exact · ${counts.near} near</span>
+      <span class="breakdown">${counts.approved} approved</span>
+    </td>`;
+}
+
+async function loadMatrix() {
+  const data = await apiGet("/matrix");
+  const countsByPair = new Map(data.pairs.map((p) => [pairKey(p.doc_a_id, p.doc_b_id), p]));
+  const header = data.documents.map((doc) => `<th>${titleCase(doc.slug)}</th>`).join("");
+  const rows = data.documents.map((rowDoc) => {
+    const cells = data.documents.map((colDoc) => renderMatrixCell(rowDoc, colDoc, countsByPair)).join("");
+    return `<tr><th>${titleCase(rowDoc.slug)}</th>${cells}</tr>`;
+  });
+  const table = document.getElementById("matrix");
+  table.innerHTML = `<thead><tr><th></th>${header}</tr></thead><tbody>${rows.join("")}</tbody>`;
+  table.querySelectorAll("td.cell").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      form.doc_a.value = cell.dataset.a;
+      form.doc_b.value = cell.dataset.b;
+      offset = 0;
+      loadList();
+    });
+  });
+}
+
+// --- CSV export --------------------------------------------------------------
+
+document.getElementById("exportButton").addEventListener("click", () => {
+  // Everything the form is filtering on, except that status is always
+  // "approved": the export is the researcher's confirmed results.
+  const { sort, ...filters } = readFormFilters();
+  location.href = "/api/export.csv" + toQueryString({ ...filters, sort, status: "approved" });
+});
+
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   offset = 0;
@@ -153,7 +203,7 @@ document.getElementById("rerunButton").addEventListener("click", async (event) =
     meta.textContent = result.ran
       ? `Run #${result.run_id}: ${result.total_parallels} parallels (${result.stale_count} stale)`
       : `Already up to date (run #${result.run_id})`;
-    await loadList();
+    await Promise.all([loadList(), loadMatrix()]);
   } catch (err) {
     meta.textContent = `Re-run failed: ${err.message}`;
   } finally {
@@ -165,5 +215,5 @@ document.getElementById("rerunButton").addEventListener("click", async (event) =
   applyFiltersToForm(parseQueryString());
   await populateDocumentOptions();
   applyFiltersToForm(parseQueryString()); // re-apply: options now exist to select
-  await loadList();
+  await Promise.all([loadList(), loadMatrix()]);
 })();

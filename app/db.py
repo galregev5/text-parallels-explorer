@@ -27,12 +27,12 @@ def connect(db_path: str | Path, *, check_same_thread: bool = True) -> sqlite3.C
     if it does not exist yet. `db_path` may be ":memory:" for a throwaway
     in-process database (used by the test suite).
 
-    `check_same_thread=False` is only for a test fixture that shares ONE
-    connection across several TestClient requests, each of which FastAPI may
-    dispatch to a different thread-pool worker thread -- a sequential, never
-    actually concurrent, use that sqlite3's check exists to forbid anyway.
-    Production code should never pass this: `app/api.py`'s `get_conn` opens
-    a fresh connection per request instead, which needs no such override.
+    `check_same_thread=False` is for a connection that is handed between
+    threads but never used by two at once: `app/api.py`'s per-request
+    `get_conn` (FastAPI opens it in one thread-pool thread and runs the route
+    in another -- DECISIONS.md 6.5) and the API test fixture's one shared
+    connection across sequential TestClient requests (4.7). Never pass it for
+    a connection that concurrent requests could share.
     """
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)

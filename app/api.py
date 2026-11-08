@@ -1,4 +1,5 @@
-"""The HTTP API: documents, parallels (list/detail/update), and re-run.
+"""The HTTP API: documents, parallels (list/detail/update), the document-pair
+matrix, CSV export, and re-run.
 
 Every route gets its own SQLite connection via `get_conn` (opened per request,
 closed at the end) rather than sharing one connection across requests --
@@ -13,19 +14,35 @@ documents) and rolls back on an exception.
 
 from __future__ import annotations
 
+import csv
+import io
 import sqlite3
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from app.config import DB_PATH
 from app.corpus import DOCUMENTS, load_corpus
 from app.db import connect, get_document, latest_run, list_documents, update_review
+from app.diff import word_diff
 from app.pipeline import run_pipeline
-from app.queries import FROM_CLAUSE, DEFAULT_SORT, ParallelFilters, count_parallels, list_parallels, ordered_ids, stale_count
+from app.queries import (
+    FROM_CLAUSE,
+    DEFAULT_SORT,
+    ParallelFilters,
+    count_parallels,
+    export_rows,
+    list_parallels,
+    ordered_ids,
+    pair_counts,
+    stale_count,
+)
 from app.schemas import (
     DocumentDetailOut,
     DocumentOut,
+    MatrixOut,
+    PairCountOut,
     ParallelDetailOut,
     ParallelListItemOut,
     ParallelListOut,
@@ -37,7 +54,13 @@ router = APIRouter()
 
 
 def get_conn():
-    conn = connect(DB_PATH)
+    # check_same_thread=False, though the connection is still per-request and
+    # never shared: FastAPI runs this sync generator dependency in one
+    # thread-pool thread and the route handler in another, so under
+    # concurrent requests the connection is HANDED from the thread that opened
+    # it to the one that uses it (sequentially, never at once). sqlite3's
+    # check forbids even that. See DECISIONS.md 6.5, tests/test_concurrency.py.
+    conn = connect(DB_PATH, check_same_thread=False)
     try:
         yield conn
         conn.commit()
@@ -142,6 +165,10 @@ def api_get_parallel(
         prev_id = ids[index - 1] if index > 0 else None
         next_id = ids[index + 1] if index < len(ids) - 1 else None
 
+    diff_a, diff_b = word_diff(
+        row["doc_a_content"], row["a_start"], row["a_end"],
+        row["doc_b_content"], row["b_start"], row["b_end"],
+    )
     latest_id = _latest_run_id(conn)
     return ParallelDetailOut(
         id=row["id"],
@@ -151,6 +178,7 @@ def api_get_parallel(
         score=row["score"], match_type=row["match_type"], status=row["status"], note=row["note"],
         is_stale=row["last_seen_run_id"] != latest_id,
         prev_id=prev_id, next_id=next_id,
+        diff_a=diff_a, diff_b=diff_b,
     )
 
 
@@ -177,6 +205,52 @@ def api_update_parallel(
         (parallel_id,),
     ).fetchone()
     return ParallelListItemOut.from_row(row, _latest_run_id(conn))
+
+
+# --- document-pair matrix ------------------------------------------------
+
+
+@router.get("/matrix", response_model=MatrixOut)
+def api_matrix(conn: sqlite3.Connection = Depends(get_conn)):
+    documents = [DocumentOut(id=row["id"], slug=row["slug"], title=row["title"]) for row in list_documents(conn)]
+    pairs = [PairCountOut(**dict(row)) for row in pair_counts(conn)]
+    return MatrixOut(documents=documents, pairs=pairs)
+
+
+# --- CSV export ------------------------------------------------------------
+
+EXPORT_COLUMNS = [
+    "id", "doc_a", "doc_b", "a_start", "a_end", "b_start", "b_end",
+    "score", "match_type", "status", "note", "is_stale", "text_a", "text_b",
+]
+
+
+@router.get("/export.csv")
+def api_export_csv(
+    filters: ParallelFilters = Depends(parallel_filters),
+    sort: str = Query(DEFAULT_SORT),
+    conn: sqlite3.Connection = Depends(get_conn),
+):
+    """The filtered set as CSV (same filters as the list). The UI's export
+    button always sends status=approved; the endpoint itself is generic."""
+    latest_id = _latest_run_id(conn)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(EXPORT_COLUMNS)
+    for row in export_rows(conn, filters, sort=sort):
+        writer.writerow([
+            row["id"], row["doc_a_slug"], row["doc_b_slug"],
+            row["a_start"], row["a_end"], row["b_start"], row["b_end"],
+            f"{row['score']:.4f}", row["match_type"], row["status"], row["note"] or "",
+            row["last_seen_run_id"] != latest_id, row["text_a"], row["text_b"],
+        ])
+    # utf-8-sig (a leading BOM): without it Excel decodes the file as the
+    # system codepage and garbles the corpus's curly apostrophes (U+2019).
+    return Response(
+        content=buffer.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="parallels.csv"'},
+    )
 
 
 # --- re-run ----------------------------------------------------------------

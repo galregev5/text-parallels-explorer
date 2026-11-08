@@ -680,6 +680,11 @@ what the test fixture works around deliberately and explicitly for its own,
 different reason (see 4.6). SQLite itself handles multiple connections to one file
 natively -- this is the standard pattern, not a workaround for a limitation.
 
+**Correction (Phase 6, see 6.5).** Per-request connections were right, but the
+reasoning above was incomplete: FastAPI runs the `get_conn` dependency and the route
+handler in *different* thread-pool threads, so even a per-request connection crosses
+threads, and concurrent requests failed. Fixed in 6.5.
+
 ### 4.3 `upsert_parallel` (pipeline-owned) and `update_review` (researcher-owned) stay two functions
 
 **Decision.** The PATCH endpoint's write goes through a new `app/db.py` function,
@@ -820,3 +825,116 @@ so it has to appear, and in order. Setting the env var once in the image fixes
 every current and future `print` in the container. `flush=True` would fix only
 the one call site, and `python -u` would need the CMD to change from `uvicorn`
 to `python -m uvicorn` for no other benefit.
+
+## Phase 6 -- Additional features
+
+The brief offered five candidates. Chosen by the owner: word-level diff, document-pair
+matrix, keyboard shortcuts, CSV export. Not built: adjustable thresholds in the UI --
+changing parameters shifts offsets and leaves stale rows behind (3.5/4.6), so it belongs
+in README future work rather than a one-click control.
+
+### 6.1 Word-level diff: `difflib.SequenceMatcher` over the scorer's normalized tokens, computed server-side
+
+**Decision.** `app/diff.py`'s `word_diff` re-tokenizes both matched spans with the
+algorithm's own `tokenize`, diffs the normalized token lists with
+`difflib.SequenceMatcher(autojunk=False)`, and returns the non-equal runs as character
+spans in each full document. The detail endpoint returns them as `diff_a`/`diff_b`;
+the UI wraps them in a second, stronger highlight inside the matched passage.
+
+**Alternatives considered.** Diffing in the browser (JS has no stdlib diff; would mean
+a hand-rolled LCS or a dependency, against the no-build-step rule). Character-level
+diff (shows "multitude" vs "people" as scattered letter edits -- noise for a reader of
+words). `rapidfuzz.distance.Levenshtein.opcodes` on token lists (works too, but the
+stdlib does this job and the brief says prefer it). Storing diffs in the database
+(they are derived and cheap to compute; storing them would need invalidating when
+the tokenizer changes).
+
+**Why.** Diffing the *same normalized tokens the scorer compared* means the highlight
+explains the score exactly: case- or punctuation-only differences never show up, which
+matches those passages being classified "exact" (2.4). Server-side keeps it in Python
+where it is unit-tested (`tests/test_diff.py`). `autojunk=False` because difflib's
+default heuristic treats frequent tokens ("the", "and") as junk once a sequence passes
+200 items, which would mis-align long passages; these are short, so the speedup is not
+needed. Checked on the real corpus: diffs pick out genuine KJV substitutions
+("tombs"/"sepulchres", "multitude"/"people", "And"/"Then").
+
+### 6.2 Document-pair matrix counts the latest run only
+
+**Decision.** `GET /api/matrix` returns every document and, per pair, total / exact /
+near / approved / rejected counts, from rows the latest run touched. The list page
+shows it as a symmetric table; clicking a cell sets the pair filter.
+
+**Alternatives considered.** Count all rows including stale ones (consistent with the
+list's default, but inflates counts silently after a parameter change). Make it obey
+the list's filters (turns a fixed overview into another moving view).
+
+**Why.** The matrix is the one-screen summary of *the current analysis*, and its most
+useful reading is the control: on the real corpus the synoptic pairs have 154-244
+parallels each, every John pair 4-9 -- the calibration check the corpus was chosen
+for (1.1), visible at a glance. Stale rows already have their own banner and filter.
+
+### 6.3 Keyboard shortcuts: j/k/a/r/p on the detail page, no auto-advance
+
+**Decision.** `j`/`k` next/previous (by clicking the existing buttons, so the same
+filtered-set navigation applies and a disabled button is a no-op), `a`/`r`/`p`
+approve/reject/pending. Ignored while focus is in a text field or with Ctrl/Alt/Meta
+held. A key hint is shown in the review panel.
+
+**Alternatives considered.** Auto-advance to the next parallel after `a`/`r` (faster,
+but the researcher never sees the decision register, and a mis-key lands on the next
+item with no visual confirmation). Shortcuts on the list page too (row selection state
+adds complexity; review happens on the detail page).
+
+**Why.** Reviewing hundreds of parallels is the core repetitive task; mouse travel
+between Approve and Next is the bottleneck. Reusing the buttons and `setStatus` means
+no second code path for navigation or saving. `p` was added to the brief's j/k/a/r
+because "undo to pending" is otherwise mouse-only.
+
+### 6.4 CSV export: generic filtered endpoint, UI button forces `status=approved`; UTF-8 with BOM
+
+**Decision.** `GET /api/export.csv` accepts the list's filters and sort and returns
+every matching row (unpaginated) with offsets, score, type, status, note, stale flag,
+and the matched text of both sides. The list page's "Export approved (CSV)" button
+sends the current filters with `status` overridden to `approved`. Encoded `utf-8-sig`.
+
+**Alternatives considered.** A hard-coded approved-only endpoint (simpler, but then
+"approved Matthew x Mark near matches" needs a second mechanism). Exporting exactly the
+current view including its status filter (then "export approved" depends on the user
+remembering to set the filter). JSON export (less useful to a humanities researcher
+than a spreadsheet).
+
+**Why.** Reusing `build_where` keeps export, list and navigation agreeing on what a
+filter means. Forcing `approved` in the UI matches the brief ("export approved
+parallels") while still honoring pair/type/score filters. The BOM is there because
+Excel otherwise reads UTF-8 CSV as the system codepage and mangles the corpus's 166
+curly apostrophes (1.5); Python's `csv` and pandas read it fine with `utf-8-sig`. Matched
+text keeps its original line breaks (quoted by `csv`), so `text_a` is exactly
+`content[a_start:a_end]`.
+
+### 6.5 Bug fix: per-request connections still cross threads; `get_conn` now passes `check_same_thread=False`
+
+**Decision.** `get_conn` keeps opening one connection per request (4.2) but opens it
+with `check_same_thread=False`. A regression test (`tests/test_concurrency.py`) runs a
+real uvicorn server in a background thread and fires 100 concurrent requests through
+the real dependency.
+
+**Alternatives considered.** Make every route `async def` (then dependency and handler
+share the event-loop thread, but every synchronous SQLite call would block the whole
+server). A connection pool or a lock (more machinery for a problem that is only
+sqlite3's thread check). Make the list page load sequentially again (hides the bug from
+this UI; two browser tabs or users at once would still hit it).
+
+**Why.** Found while checking the Phase 6 UI in a browser: the list page now loads the
+list and the matrix in parallel, and both came back 500 with
+`sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that
+same thread`. Reproduced against the container with 80 concurrent curl requests: 23
+failed. The cause: FastAPI runs a sync generator dependency in one thread-pool thread and
+the route handler in another -- 4.2 assumed one request meant one thread. The connection
+is still never *shared* between requests; it is only handed from one thread to the next
+within one request, sequentially, which is the use `check_same_thread=False` exists for.
+`sqlite3.threadsafety` is 3 (serialized) both locally and in the container, so the
+library itself is safe with this. The existing API tests could not catch it: they share
+one connection with the override already applied (4.7), and `TestClient` serializes
+requests -- a first version of the regression test using `TestClient` from a thread pool
+passed *without* the fix, so it was replaced by the real-server version, which failed 3
+of 3 runs before the fix and passes after.

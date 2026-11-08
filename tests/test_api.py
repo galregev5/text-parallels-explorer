@@ -240,3 +240,67 @@ def test_static_assets_are_served(client):
     for path in ("/style.css", "/app.js", "/list.js", "/detail.js"):
         res = client.get(path)
         assert res.status_code == 200, path
+
+
+# --- Phase 6: word diff, matrix, CSV export ----------------------------------
+
+
+def _parallel_by_type(client, match_type):
+    return client.get("/api/parallels", params={"match_type": match_type}).json()["items"][0]
+
+
+def test_detail_of_a_near_match_marks_the_substituted_word_on_each_side(client):
+    item = _parallel_by_type(client, "near")
+    data = client.get(f"/api/parallels/{item['id']}").json()
+    words_a = [data["doc_a"]["content"][start:end] for start, end in data["diff_a"]]
+    words_b = [data["doc_b"]["content"][start:end] for start, end in data["diff_b"]]
+    assert words_a == ["jumps"]
+    assert words_b == ["leaps"]
+
+
+def test_detail_of_an_exact_match_has_no_diff(client):
+    item = _parallel_by_type(client, "exact")
+    data = client.get(f"/api/parallels/{item['id']}").json()
+    assert data["diff_a"] == [] and data["diff_b"] == []
+
+
+def test_matrix_counts_the_pair_by_type_and_status(client):
+    near = _parallel_by_type(client, "near")
+    client.patch(f"/api/parallels/{near['id']}", json={"status": "approved"})
+
+    data = client.get("/api/matrix").json()
+    assert {doc["slug"] for doc in data["documents"]} == {"a", "b"}
+    assert len(data["pairs"]) == 1
+    pair = data["pairs"][0]
+    assert pair["doc_a_id"] < pair["doc_b_id"]
+    assert (pair["total"], pair["exact"], pair["near"]) == (2, 1, 1)
+    assert (pair["approved"], pair["rejected"]) == (1, 0)
+
+
+def _read_csv(res):
+    import csv
+    import io
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/csv")
+    assert "attachment" in res.headers["content-disposition"]
+    text = res.content.decode("utf-8-sig")
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+def test_csv_export_of_approved_contains_only_approved_rows_with_their_text(client):
+    near = _parallel_by_type(client, "near")
+    client.patch(f"/api/parallels/{near['id']}", json={"status": "approved", "note": "a, \"quoted\" note"})
+
+    rows = _read_csv(client.get("/api/export.csv", params={"status": "approved"}))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == str(near["id"]) and row["status"] == "approved"
+    assert row["note"] == 'a, "quoted" note'
+    assert "jumps" in row["text_a"] and "leaps" in row["text_b"]
+
+
+def test_csv_export_starts_with_a_byte_order_mark_for_excel(client):
+    res = client.get("/api/export.csv")
+    assert res.content.startswith(b"\xef\xbb\xbf")
+    assert len(_read_csv(res)) == 2

@@ -86,6 +86,10 @@ class ParallelDetailOut(BaseModel):
     is_stale: bool
     prev_id: int | None
     next_id: int | None
+    # Word-level differences inside the match, as [start, end) character
+    # offsets into each full document (empty for an exact match).
+    diff_a: list[tuple[int, int]]
+    diff_b: list[tuple[int, int]]
 
 
 class ParallelUpdateIn(BaseModel):
@@ -93,6 +97,21 @@ class ParallelUpdateIn(BaseModel):
     # schema's CHECK constraint to reject as an opaque 500.
     status: Literal["pending", "approved", "rejected"] | None = None
     note: str | None = None
+
+
+class PairCountOut(BaseModel):
+    doc_a_id: int
+    doc_b_id: int
+    total: int
+    exact: int
+    near: int
+    approved: int
+    rejected: int
+
+
+class MatrixOut(BaseModel):
+    documents: list[DocumentOut]
+    pairs: list[PairCountOut]  # only pairs with at least one parallel; doc_a_id < doc_b_id
 
 
 class RerunOut(BaseModel):
